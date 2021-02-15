@@ -2,10 +2,8 @@
 # coding: utf-8
 import pandas as pd
 import numpy as np
-
 import re
 import urllib.request
-
 import tensorflow_datasets as tfds
 import tensorflow as tf
 from konlpy.tag import Okt
@@ -14,21 +12,15 @@ import glob
 import os
 from time import sleep
 
-
-#urllib.request.urlretrieve("https://raw.githubusercontent.com/songys/Chatbot_data/master/ChatbotData%20.csv", filename="ChatBotData.csv")
-
 train_data = pd.read_csv('./data_in/ChatBotDataHIT.csv')
-print(train_data.tail())
 
-#len(train_data)
-
-
-# 토큰화를 위해 형태소 분석기를 사용하지 않고, 다른 방법인 학습 기반의 토크나이저를 사용할 것입니다. 그래서 원 데이터에서 ?, ., !와 같은 구두점을 미리 처리해두어야 하는데, 구두점들을 단순히 제거할 수도 있겠지만, 여기서는 구두점 앞에 공백. 즉, 띄어쓰기를 추가하여 다른 문자들과 구분하겠습니다.
-# 가령, '12시 땡!' 이라는 문장이 있다면 '12시 땡 !'으로 땡과 !사이에 공백을 추가합니다. 이는 정규 표현식을 사용하여 가능합니다. 이 전처리는 질문 데이터와 답변 데이터 모두에 적용해줍니다.
-
+# 토큰화를 위해 형태소 분석기를 사용하지 않고, 다른 방법인 학습 기반의 토크나이저를 사용할 것입니다. 
+# 그래서 원 데이터에서 ?, ., !와 같은 구두점을 미리 처리해두어야 하는데, 구두점들을 단순히 제거할 수도 있겠지만, 
+# 여기서는 구두점 앞에 공백. 즉, 띄어쓰기를 추가하여 다른 문자들과 구분하겠습니다.
+# 가령, '12시 땡!' 이라는 문장이 있다면 '12시 땡 !'으로 땡과 !사이에 공백을 추가합니다. 
+# 이는 정규 표현식을 사용하여 가능합니다. 이 전처리는 질문 데이터와 답변 데이터 모두에 적용해줍니다.
 questions = []
 for sentence in train_data['Q']:
-    # 구두점에 대해서 띄어쓰기 ex) 12시 땡! -> 12시 땡 !
     sentence = re.sub(r"([?.!,])", r" ", sentence)
     sentence = sentence.strip() 
     questions.append(sentence)
@@ -36,13 +28,9 @@ for sentence in train_data['Q']:
 
 answers = []
 for sentence in train_data['A']:
-    # 구두점에 대해서 띄어쓰기 ex) 12시 땡! -> 12시 땡 !
     sentence = re.sub(r"([?.!,])", r" ", sentence)
     sentence = sentence.strip()
     answers.append(sentence)
-
-#print(questions[:5])
-#print(answers[:5])
 
 # 서브워드텍스트인코더를 사용하여 질문, 답변 데이터로부터 단어 집합(Vocabulary) 생성
 tokenizer = tfds.deprecated.text.SubwordTextEncoder.build_from_corpus(
@@ -52,11 +40,10 @@ tokenizer = tfds.deprecated.text.SubwordTextEncoder.build_from_corpus(
 START_TOKEN, END_TOKEN = [tokenizer.vocab_size], [tokenizer.vocab_size + 1]
 
 # 시작 토큰과 종료 토큰을 고려하여 단어 집합의 크기를 + 2
-
 VOCAB_SIZE = tokenizer.vocab_size + 2
 
-# 최대 길이를 40으로 정의
-MAX_LENGTH = 60
+# 최대 길이를 80으로 정의
+MAX_LENGTH = 80
 
 # 토큰화 / 정수 인코딩 / 시작 토큰과 종료 토큰 추가 / 패딩 함수를 만든다.
 def tokenize_and_filter(inputs, outputs):
@@ -143,6 +130,11 @@ class PositionalEncoding(tf.keras.layers.Layer):
   def call(self, inputs):
     return inputs + self.pos_encoding[:, :tf.shape(inputs)[1], :]
 
+
+# 멀티헤드 어텐션은 어텐션 맵을 여럿 만들어 다양한 특징에 대한 어텐션을 볼수 있게 한 방법이다.
+# 내적 셀프 어텐션에서 본 query, key, value에 대한 특징값을 헤드 수만큼 나눠서 Linear Layer를 거쳐서 내적 어텐션을 구해서 다시 합친다. 
+# 이 과정을 거치고 최종적으로 Linear Layer 를 거쳐 나오면 멀티 헤드 어텐션 과정을 끝내게 된다. 
+# 멀티 헤드 어텐션은 기본적으로 앞에서 구현한 스케일 내적 어텐션 기반으로 구성되어 있다.
 class MultiHeadAttention(tf.keras.layers.Layer):
 
   def __init__(self, d_model, num_heads, name="multi_head_attention"):
@@ -209,6 +201,14 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
     return outputs
 
+# query, key, value 구성을 구현한 함수입니다.
+# 각 Q 벡터는 모든 K 벡터에 대해서 어텐션 스코어를 구하고, 어텐션 분포를 구한 뒤에 이를 사용하여 모든 V 벡터를 가중합하여 
+# 어텐션 값 또는 컨텍스트 벡터를 구하게 됩니다. 그리고 이를 모든 Q 벡터에 대해서 반복합니다.
+# 어텐션을 어텐션 챕터에서 배운 닷-프로덕트 어텐션(dot-product attention)에서 값을 스케일링하는 것을 추가하였다고 하여 
+# 스케일드 닷-프로덕트 어텐션(Scaled dot-product Attention)이라고 합니다.
+# 입력값 query, key, value 를 인자를 통해서 받는다.
+# query, key, value 는 모두 문장인데, 각 단어가 벡터로 되어 있고 이것들이 모여서 행렬로 되어 있는 구조이다.
+# query, key 를 행렬곱하여 어텐션 맵을 만든다.
 def scaled_dot_product_attention(query, key, value, mask):
   # query 크기 : (batch_size, num_heads, query의 문장 길이, d_model/num_heads)
   # key 크기 : (batch_size, num_heads, key의 문장 길이, d_model/num_heads)
@@ -230,6 +230,9 @@ def scaled_dot_product_attention(query, key, value, mask):
 
   # 소프트맥스 함수는 마지막 차원인 key의 문장 길이 방향으로 수행된다.
   # attention weight : (batch_size, num_heads, query의 문장 길이, key의 문장 길이)
+  # # softmax로 마스킹영역이 걸러짐.
+  # 소프트맥스에 매우 작은 음수값을 넣을 경우 거의 0에 수렴하는 값을 갖게 된다. 
+  # 결국 마스킹 처리한 부분을 참고 할수 없게 되는 것이다.
   attention_weights = tf.nn.softmax(logits, axis=-1)
 
   # output : (batch_size, num_heads, query의 문장 길이, d_model/num_heads)
@@ -242,6 +245,12 @@ def create_padding_mask(x):
   # (batch_size, 1, 1, key의 문장 길이)
   return mask[:, tf.newaxis, tf.newaxis, :]
 
+# 인코더 레이어는 크게 4가지로 구성한다.
+# -멀티 헤드 어텐션
+# -포지션 와이즈 피드 포워드 네트워크
+# -레이어 노멀리제이션
+# -드롭아웃
+# 인코더 레이어를 여러개 쌓아 인코더를 구현할 수 있다.
 def encoder_layer(dff, d_model, num_heads, dropout, name="encoder_layer"):
   inputs = tf.keras.Input(shape=(None, d_model), name="inputs")
 
@@ -272,6 +281,8 @@ def encoder_layer(dff, d_model, num_heads, dropout, name="encoder_layer"):
   return tf.keras.Model(
       inputs=[inputs, padding_mask], outputs=outputs, name=name)
 
+# Encoder 에서는 EncoderLayer 를 쌓고, 워드 임베딩과 순서 정보를 위한 포지셔날 임베딩 정보를 받아 텍스트에 대한 컨텍스트 정보를 만든다. 
+# 여기서 EncoderLayer 는 여러층 쌓을 수 있다.
 def encoder(vocab_size, num_layers, dff,
             d_model, num_heads, dropout,
             name="encoder"):
@@ -296,12 +307,14 @@ def encoder(vocab_size, num_layers, dff,
       inputs=[inputs, padding_mask], outputs=outputs, name=name)
 
 # 디코더의 첫번째 서브층(sublayer)에서 미래 토큰을 Mask하는 함수
+# 이전 key 정보에 대해서는 보여주고 이후에 나오는 단어들에 대해 보지 못하게 하는 기법
 def create_look_ahead_mask(x):
   seq_len = tf.shape(x)[1]
   look_ahead_mask = 1 - tf.linalg.band_part(tf.ones((seq_len, seq_len)), -1, 0)
   padding_mask = create_padding_mask(x) # 패딩 마스크도 포함
   return tf.maximum(look_ahead_mask, padding_mask)
 
+# 디코더 레이어는 인코더 레이어와 동일 하지만 멀티헤드 어텐션이 하나더 추가된 형태이다.
 def decoder_layer(dff, d_model, num_heads, dropout, name="decoder_layer"):
   inputs = tf.keras.Input(shape=(None, d_model), name="inputs")
   enc_outputs = tf.keras.Input(shape=(None, d_model), name="encoder_outputs")
@@ -348,6 +361,7 @@ def decoder_layer(dff, d_model, num_heads, dropout, name="decoder_layer"):
       outputs=outputs,
       name=name)
 
+# 인코더와 거의 동일하다.
 def decoder(vocab_size, num_layers, dff,
             d_model, num_heads, dropout,
             name='decoder'):
@@ -376,6 +390,7 @@ def decoder(vocab_size, num_layers, dff,
       outputs=outputs,
       name=name)
 
+# 트렌스포머 모델
 def transformer(vocab_size, num_layers, dff,
                 d_model, num_heads, dropout,
                 name="transformer"):
@@ -444,6 +459,12 @@ def loss_function(y_true, y_pred):
 tf.keras.backend.clear_session()
 
 # Hyper-parameters
+# 셀프 어텐션은 인코더의 초기 입력인 dmodel의 차원을 가지는 단어 벡터들을 사용하여 셀프 어텐션을 수행하는 것이 아니라 
+# 우선 각 단어 벡터들로부터 Q벡터, K벡터, V벡터를 얻는 작업을 거칩니다. 이때 이 Q벡터, K벡터, V벡터들은 초기 입력인 
+# dmodel의 차원을 가지는 단어 벡터들보다 더 작은 차원을 가지는데, 논문에서는 dmodel=512의 차원을 가졌던 
+# 각 단어 벡터들을 64의 차원을 가지는 Q벡터, K벡터, V벡터로 변환하였다. 64라는 값은 트랜스포머의 또 다른 하이퍼파라미터인 
+# num_heads로 인해 결정되는데, 트랜스포머는 dmodel을 num_heads로 나눈 값을 각 Q벡터, K벡터, V벡터의 차원으로 결정합니다. 
+# 논문에서는 num_heads를 8로하였습니다.
 D_MODEL = 512
 NUM_LAYERS = 2
 NUM_HEADS = 8
