@@ -1,6 +1,7 @@
 # HitChat
 
 ## 한국IT 챗봇 서비스
+<img src="./images/hitchat.png">
 
 ### 사용 기술 : 
 *  인공지능(AI)
