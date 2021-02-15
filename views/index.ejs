@@ -1,0 +1,62 @@
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>한국IT 챗봇</title>   
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- 
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <link rel="stylesheet" href="/css/bootstrap.min.css" />
+	<link rel="stylesheet" href="/css/mdb.min.css" />
+    <link rel="stylesheet" href="/css/style.css" /> -->
+    
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <form id="chat" name="chat" onsubmit="return true">
+            <div class="py-5 text-center">
+                <img class="d-block mx-auto mb-4" src="http://www.koreait.ac.kr//images/2020/logo2020new.png" alt="한국IT직업전문학교" width="130" height="30">
+
+                <h2>한국IT 챗봇 서비스</h2> 
+                <p>한국IT에 오시면 IT Star가 될 수 있습니다. 한국IT가 여러분을 크게 키워 드립니다.</p> 
+
+            </div>
+            <!--
+            <h4><span class="label label-success">질문 내용을 정확하게 입력해 주세요</span></h4>
+            <input type="text" class="form-control" id="message" type="submit" required="required">
+            -->
+            <div class="form-group">
+                <label for="message" class="label label-success">Question</label>
+                <input type="text" class="form-control" id="message" aria-describedby="chatHelp" placeholder="질문 내용을 여기에 입력하세요" required="required">
+                <small id="chatHelp" class="form-text text-muted">문의하실 내용을 입력하고 대답 버튼을 눌러주세요.</small>
+            </div>
+            <button class="btn btn-primary" type="submit">대답해 주세요!</button>
+        </form>
+		<!-- <h4><span class="label label-warning">답변은 다음과 같습니다.</span></h4> -->
+        <textarea class="form-control" rows="5" id="chatLog"></textarea>
+        <button class="btn btn-warning" onclick="document.getElementById('message').value = ''; document.getElementById('chatLog').value = ''">Clear</button>
+    </div>  
+      
+    <script>
+        var socket = io();
+        
+        $('#chat').on('submit', function(e){
+            //ctMsg = $('#message').val();
+            //$('#chatLog').val("message : " + ctMsg);
+            //웹 브라우저의 웹소켓으로 보냅니다.
+            socket.emit('chat question', $('#message').val());
+            e.preventDefault();
+        });
+
+        //웹소켓에서 이벤트을 받으면 답변란에 업데이트
+        socket.on('chat answer', function(msg){ //3
+            $('#chatLog').val(msg);
+          });       
+
+    </script>
+</body>
+</html>
