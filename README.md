@@ -26,4 +26,4 @@
 
 ### 참고 Site
 - Transformer Source Code  https://wikidocs.net/89786
-- ChatBot 자료	https://github.com/songys/Chatbot_data (송영숙님)
+- ChatBot 기초 학습 자료	https://github.com/songys/Chatbot_data (송영숙님)
