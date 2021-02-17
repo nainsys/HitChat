@@ -23,3 +23,7 @@
    4. 예상하지 못한 질문에 대해서는 질문 내용을 텍스트 화일을 기록한다. 
    5. 파이썬 챗봇 서버에서 질문 내용을 읽어 응답을 만들어 기록한다.
    6. JS 서버에서 파이썬 챗봇이 응답한 내용을 파일에서 읽어 Web Client로 응답한다.
+
+### 참고 Site
+- Transformer Source Code  https://wikidocs.net/89786
+- ChatBot 자료	https://github.com/songys/Chatbot_data (송영숙님)
